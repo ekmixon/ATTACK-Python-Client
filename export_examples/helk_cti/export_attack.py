@@ -23,10 +23,9 @@ db = mitre.get_all_attack()
 # Removes '\n' inside of a list element of the 'system_requirements' property
 db_fixed = db
 for sr in db_fixed:
-    if 'system_requirements' in sr:
-        if sr['system_requirements']:
-            for idx, item in enumerate(sr['system_requirements']):
-                sr['system_requirements'][idx] = sr['system_requirements'][idx].replace('\n',' ')
+    if 'system_requirements' in sr and sr['system_requirements']:
+        for idx, item in enumerate(sr['system_requirements']):
+            sr['system_requirements'][idx] = sr['system_requirements'][idx].replace('\n',' ')
 
 df = json_normalize(db_fixed)
 df = df[[
