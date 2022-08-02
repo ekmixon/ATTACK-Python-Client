@@ -202,17 +202,14 @@ class attack_client(object):
                 elif obj_dict['type'] == 'matrix':
                     obj_dict['matrix_id'] = list_object[0]['external_id']
             elif object_type == "kill_chain_phases":
-                tactic_list = list()
+                tactic_list = []
                 for phase in list_object:
                     tactic_list.append(phase['phase_name'])
                 obj_dict['tactic'] = tactic_list
 
-        stix_objects_list = list()
+        stix_objects_list = []
         for obj in stix_objects:
-            if isinstance(obj, dict):
-                obj_dict = obj
-            else:
-                obj_dict = json.loads(obj.serialize()) # From STIX to Python Dict 
+            obj_dict = obj if isinstance(obj, dict) else json.loads(obj.serialize())
             dict_keys =  list(obj_dict.keys())
             for key in dict_keys:
                 if obj['type'] == "attack-pattern":
@@ -221,7 +218,7 @@ class attack_client(object):
                     stix_mapping = mitigation_stix_mapping
                 elif obj['type'] == "intrusion-set":
                     stix_mapping = group_stix_mapping
-                elif obj['type'] == "malware" or obj['type'] == "tool":
+                elif obj['type'] in ["malware", "tool"]:
                     stix_mapping = software_stix_mapping
                 elif obj['type'] == "relationship":
                     stix_mapping = relationship_stix_mapping
@@ -237,7 +234,7 @@ class attack_client(object):
                     return stix_objects_list
 
                 if key in stix_mapping.keys():
-                    if key == "external_references" or key == "kill_chain_phases":
+                    if key in ["external_references", "kill_chain_phases"]:
                         handle_list(obj_dict[key], key)
                     else:
                         new_key = stix_mapping[key]
@@ -246,36 +243,40 @@ class attack_client(object):
         return stix_objects_list
 
     def remove_revoked(self, stix_objects):
-        non_revoked = list()
-        for obj in stix_objects:
-            if 'revoked' in obj.keys() and obj['revoked'] == True:
-                continue
-            else:
-                non_revoked.append(obj)
+        non_revoked = []
+        non_revoked.extend(
+            obj
+            for obj in stix_objects
+            if 'revoked' not in obj.keys() or obj['revoked'] != True
+        )
+
         return non_revoked
     
     def extract_revoked(self, stix_objects):
-        revoked = list()
-        for obj in stix_objects:
-            if 'revoked' in obj.keys() and obj['revoked'] == True:
-                revoked.append(obj)
-        return revoked
+        return [
+            obj
+            for obj in stix_objects
+            if 'revoked' in obj.keys() and obj['revoked'] == True
+        ]
     
     def remove_deprecated(self, stix_objects):
-        non_deprecated = list()
-        for obj in stix_objects:
-            if 'x_mitre_deprecated' in obj.keys() and obj['x_mitre_deprecated'] == True:
-                continue
-            else:
-                non_deprecated.append(obj)
+        non_deprecated = []
+        non_deprecated.extend(
+            obj
+            for obj in stix_objects
+            if 'x_mitre_deprecated' not in obj.keys()
+            or obj['x_mitre_deprecated'] != True
+        )
+
         return non_deprecated
 
     def extract_deprecated(self, stix_objects):
-        deprecated = list()
-        for obj in stix_objects:
-            if 'x_mitre_deprecated' in obj.keys() and obj['x_mitre_deprecated'] == True:
-                deprecated.append(obj)
-        return deprecated
+        return [
+            obj
+            for obj in stix_objects
+            if 'x_mitre_deprecated' in obj.keys()
+            and obj['x_mitre_deprecated'] == True
+        ]
 
     # ******** Enterprise ATT&CK Technology Domain  *******
     def get_enterprise(self, stix_format=True):
@@ -774,19 +775,25 @@ class attack_client(object):
         ics_objects = self.get_ics()
         for keypre in pre_objects.keys():
             for preobj in pre_objects[keypre]:
-                if keypre in enterprise_objects.keys():
-                    if preobj not in enterprise_objects[keypre]:
-                        enterprise_objects[keypre].append(preobj)
+                if (
+                    keypre in enterprise_objects.keys()
+                    and preobj not in enterprise_objects[keypre]
+                ):
+                    enterprise_objects[keypre].append(preobj)
         for keymob in mobile_objects.keys():
             for mobobj in mobile_objects[keymob]:
-                if keymob in enterprise_objects.keys():
-                    if mobobj not in enterprise_objects[keymob]:
-                        enterprise_objects[keymob].append(mobobj)
+                if (
+                    keymob in enterprise_objects.keys()
+                    and mobobj not in enterprise_objects[keymob]
+                ):
+                    enterprise_objects[keymob].append(mobobj)
         for keyics in ics_objects.keys():
             for icsobj in ics_objects[keyics]:
-                if keyics in enterprise_objects.keys():
-                    if icsobj not in enterprise_objects[keyics]:
-                        enterprise_objects[keyics].append(icsobj)
+                if (
+                    keyics in enterprise_objects.keys()
+                    and icsobj not in enterprise_objects[keyics]
+                ):
+                    enterprise_objects[keyics].append(icsobj)
         if not stix_format:
             for enterkey in enterprise_objects.keys():
                 enterprise_objects[enterkey] = self.translate_stix_objects(enterprise_objects[enterkey])
@@ -913,10 +920,12 @@ class attack_client(object):
         """
         if not case:
             all_techniques = self.get_techniques()
-            all_techniques_list = list()
-            for tech in all_techniques:
-                if name.lower() in tech['name'].lower():
-                    all_techniques_list.append(tech)
+            all_techniques_list = [
+                tech
+                for tech in all_techniques
+                if name.lower() in tech['name'].lower()
+            ]
+
         else:
             filter_objects = [
                 Filter('type', '=', 'attack-pattern'),
@@ -939,11 +948,13 @@ class attack_client(object):
         
         """
         all_techniques = self.get_techniques()
-        all_techniques_list = list()
-        for tech in all_techniques:
-            if "description" in tech.keys():
-                if name.lower() in tech['description'].lower():
-                    all_techniques_list.append(tech)
+        all_techniques_list = [
+            tech
+            for tech in all_techniques
+            if "description" in tech.keys()
+            and name.lower() in tech['description'].lower()
+        ]
+
         if not stix_format:
             all_techniques_list = self.translate_stix_objects(all_techniques_list)
         return all_techniques_list
@@ -961,12 +972,15 @@ class attack_client(object):
         """
         if not case:
             all_techniques = self.get_techniques()
-            all_techniques_list = list()
+            all_techniques_list = []
             for tech in all_techniques:
                 if 'x_mitre_platforms' in tech.keys():
-                    for platform in tech['x_mitre_platforms']:
-                        if name.lower() in platform.lower():
-                            all_techniques_list.append(tech)
+                    all_techniques_list.extend(
+                        tech
+                        for platform in tech['x_mitre_platforms']
+                        if name.lower() in platform.lower()
+                    )
+
         else:
             filter_objects = [
                 Filter('type', '=', 'attack-pattern'),
@@ -990,11 +1004,14 @@ class attack_client(object):
         """
         if not case:
             all_techniques = self.get_techniques()
-            all_techniques_list = list()
-            for tech in all_techniques:
-                if 'kill_chain_phases' in tech.keys():
-                     if name.lower() in tech['kill_chain_phases'][0]['phase_name'].lower():
-                        all_techniques_list.append(tech)
+            all_techniques_list = [
+                tech
+                for tech in all_techniques
+                if 'kill_chain_phases' in tech.keys()
+                and name.lower()
+                in tech['kill_chain_phases'][0]['phase_name'].lower()
+            ]
+
         else:
             filter_objects = [
                 Filter('type', '=', 'attack-pattern'),
@@ -1020,15 +1037,14 @@ class attack_client(object):
         valid_objects = {'attack-pattern','course-of-action','intrusion-set','malware','tool'}
         if object_type not in valid_objects:
             raise ValueError("ERROR: Valid object must be one of %r" % valid_objects)
-        else:
-            filter_objects = [
-                Filter('type', '=', object_type),
-                Filter('external_references.external_id', '=', attack_id)
-            ]
-            all_stix_objects = self.COMPOSITE_DS.query(filter_objects)
-            if not stix_format:
-                all_stix_objects = self.translate_stix_objects(all_stix_objects)
-            return all_stix_objects
+        filter_objects = [
+            Filter('type', '=', object_type),
+            Filter('external_references.external_id', '=', attack_id)
+        ]
+        all_stix_objects = self.COMPOSITE_DS.query(filter_objects)
+        if not stix_format:
+            all_stix_objects = self.translate_stix_objects(all_stix_objects)
+        return all_stix_objects
 
     def get_group_by_alias(self, group_alias, case=True, stix_format=True):
         """ Extracts group STIX objects by alias name accross all ATT&CK matrices
@@ -1044,12 +1060,15 @@ class attack_client(object):
         """
         if not case:
             all_groups = self.get_groups()
-            all_groups_list = list()
+            all_groups_list = []
             for group in all_groups:
                 if "aliases" in group.keys():
-                    for alias in group['aliases']:
-                        if group_alias.lower() in alias.lower():
-                            all_groups_list.append(group)
+                    all_groups_list.extend(
+                        group
+                        for alias in group['aliases']
+                        if group_alias.lower() in alias.lower()
+                    )
+
         else:
             filter_objects = [
                 Filter('type', '=', 'intrusion-set'),
@@ -1149,20 +1168,21 @@ class attack_client(object):
         groups = self.get_groups()
         groups = self.remove_revoked(groups)
         techniques = self.get_techniques()
-        group_relationships = list()
-        group_techniques_ref = list()
-        groups_use_techniques = list()
+        group_techniques_ref = []
+        groups_use_techniques = []
         filters = [
             Filter("type", "=", "relationship"),
             Filter('relationship_type','=','uses')
         ]
         relationships = self.COMPOSITE_DS.query(filters)
-        
-        for rel in relationships:
-            if get_type_from_id(rel.source_ref) == 'intrusion-set'\
-            and get_type_from_id(rel.target_ref) == 'attack-pattern':
-                group_relationships.append(rel)
-        
+
+        group_relationships = [
+            rel
+            for rel in relationships
+            if get_type_from_id(rel.source_ref) == 'intrusion-set'
+            and get_type_from_id(rel.target_ref) == 'attack-pattern'
+        ]
+
         for g in groups:
             for rel in group_relationships:
                 if g['id'] == rel['source_ref']:
@@ -1171,13 +1191,13 @@ class attack_client(object):
                     gs['relationship_description'] = rel['description']
                     gs['relationship_id'] = rel['id']
                     group_techniques_ref.append(gs)
-        
+
         for gt in group_techniques_ref:
             for t in techniques:
                 if gt['technique_ref'] == t['id']:
                     if 'revoked' in t.keys():
                         gt['revoked'] = t['revoked']
-                    tactic_list = list()
+                    tactic_list = []
                     if 'kill_chain_phases' in t.keys():
                         tactic_list = t['kill_chain_phases']
                     gt['technique'] = t['name']
@@ -1211,11 +1231,13 @@ class attack_client(object):
         
         """
         relationships = self.get_relationships_by_object(stix_object)
-        software_relationships = list()
-        for relation in relationships:
-            if get_type_from_id(relation.target_ref) in ['malware', 'tool']:
-                software_relationships.append(relation)
-        if len(software_relationships) == 0:
+        software_relationships = [
+            relation
+            for relation in relationships
+            if get_type_from_id(relation.target_ref) in ['malware', 'tool']
+        ]
+
+        if not software_relationships:
             return software_relationships
         filter_objects = [
             Filter('type', 'in', ['malware', 'tool']),
@@ -1254,11 +1276,13 @@ class attack_client(object):
         
         """
         relationships = self.get_relationships_by_object(stix_object)
-        software_relationships = list()
-        for relation in relationships:
-            if get_type_from_id(relation.source_ref) in ['malware', 'tool']:
-                software_relationships.append(relation)
-        if len(software_relationships) == 0:
+        software_relationships = [
+            relation
+            for relation in relationships
+            if get_type_from_id(relation.source_ref) in ['malware', 'tool']
+        ]
+
+        if not software_relationships:
             return software_relationships
         filter_objects = [
             Filter('type', '=', 'attack-pattern'),
@@ -1298,12 +1322,13 @@ class attack_client(object):
         """
         # Get all relationships available for group
         relationships = self.get_relationships_by_object(stix_object)
-        software_relationships = list()
-        # Get all software relationships from group
-        for relation in relationships:
-            if get_type_from_id(relation.target_ref) in ['malware', 'tool']:
-                software_relationships.append(relation)
-        if len(software_relationships) == 0:
+        software_relationships = [
+            relation
+            for relation in relationships
+            if get_type_from_id(relation.target_ref) in ['malware', 'tool']
+        ]
+
+        if not software_relationships:
             return software_relationships
         # Get all used by the software that is used by group
         filter_objects = [
@@ -1366,11 +1391,13 @@ class attack_client(object):
         
         """
         relationships = self.get_relationships_by_object(stix_object)
-        mitigation_relationships = list()
-        for relation in relationships:
-            if get_type_from_id(relation.source_ref) == 'course-of-action':
-                mitigation_relationships.append(relation)
-        if len(mitigation_relationships) == 0:
+        mitigation_relationships = [
+            relation
+            for relation in relationships
+            if get_type_from_id(relation.source_ref) == 'course-of-action'
+        ]
+
+        if not mitigation_relationships:
             return mitigation_relationships
         filter_objects = [
             Filter('type', '=', 'attack-pattern'),
@@ -1410,20 +1437,23 @@ class attack_client(object):
         # Get all relationships available
         relationships = self.get_relationships()
         # Get all mitigation relationships
-        mitigation_relationships = list()
-        for relation in relationships:
-            if get_type_from_id(relation.source_ref) in ['course-of-action']:
-                mitigation_relationships.append(relation)
-        if len(mitigation_relationships) == 0:
+        mitigation_relationships = [
+            relation
+            for relation in relationships
+            if get_type_from_id(relation.source_ref) in ['course-of-action']
+        ]
+
+        if not mitigation_relationships:
             return mitigation_relationships
         # Get all techniques
         techniques = self.get_techniques()
-        all_techniques_list = list()
+        all_techniques_list = []
         # loop through mitigation relationships to match technique
         for mr in mitigation_relationships:
-            for t in techniques:
-                if t['id'] == mr['target_ref']:
-                    all_techniques_list.append(t)
+            all_techniques_list.extend(
+                t for t in techniques if t['id'] == mr['target_ref']
+            )
+
         if not stix_format:
             all_techniques_list = self.translate_stix_objects(all_techniques_list)
         return all_techniques_list
@@ -1451,9 +1481,16 @@ class attack_client(object):
         techniques = self.get_techniques()
         for d in args:
             for t in techniques:
-                if 'x_mitre_data_sources' in t.keys() and [x for x in t['x_mitre_data_sources'] if d.lower() in x.lower()]:
-                    if t not in techniques_results:
-                        techniques_results.append(t)
+                if (
+                    'x_mitre_data_sources' in t.keys()
+                    and [
+                        x
+                        for x in t['x_mitre_data_sources']
+                        if d.lower() in x.lower()
+                    ]
+                    and t not in techniques_results
+                ):
+                    techniques_results.append(t)
         if not stix_format:
             techniques_results = self.translate_stix_objects(techniques_results)
         return techniques_results
@@ -1465,19 +1502,22 @@ class attack_client(object):
         groups = self.remove_revoked(groups)
         groups_list = []
         for g in groups:
-            group_dict = dict()
-            group_dict[g['name']] = []
-            groups_list.append(group_dict)      
+            group_dict = {g['name']: []}
+            groups_list.append(group_dict)
         for group in groups_list:
             for group_name,techniques_list in group.items():
                 for gut in techniques_used:
                     if group_name == gut['name']:
-                        technique_dict = dict()
-                        technique_dict['techniqueId'] = gut['technique_id']
-                        technique_dict['techniqueName'] = gut['technique']
-                        technique_dict['comment'] = gut['relationship_description']
-                        technique_dict['tactic'] = gut['tactic']
-                        technique_dict['group_id'] = gut['external_references'][0]['external_id']
+                        technique_dict = {
+                            'techniqueId': gut['technique_id'],
+                            'techniqueName': gut['technique'],
+                            'comment': gut['relationship_description'],
+                            'tactic': gut['tactic'],
+                            'group_id': gut['external_references'][0][
+                                'external_id'
+                            ],
+                        }
+
                         if 'data_sources' in gut.keys():
                             technique_dict['dataSources'] = gut['data_sources']
                         techniques_list.append(technique_dict)
@@ -1485,32 +1525,32 @@ class attack_client(object):
             for k,v in group.items():
                 if v:
                     actor_layer = {
-                        "description": ("Enterprise techniques used by {0}, ATT&CK group {1} v1.0".format(k,v[0]['group_id'])),
-                        "name": ("{0} ({1})".format(k,v[0]['group_id'])),
+                        "description": (
+                            "Enterprise techniques used by {0}, ATT&CK group {1} v1.0".format(
+                                k, v[0]['group_id']
+                            )
+                        ),
+                        "name": ("{0} ({1})".format(k, v[0]['group_id'])),
                         "domain": "mitre-enterprise",
                         "version": "3.0",
                         "techniques": [
                             {
                                 "score": 1,
-                                "techniqueID" : technique['techniqueId'],
-                                "techniqueName" : technique['techniqueName'],
-                                "comment": technique['comment']
-                            } for technique in v
+                                "techniqueID": technique['techniqueId'],
+                                "techniqueName": technique['techniqueName'],
+                                "comment": technique['comment'],
+                            }
+                            for technique in v
                         ],
                         "gradient": {
-                            "colors": [
-                                "#ffffff",
-                                "#ff6666"
-                            ],
+                            "colors": ["#ffffff", "#ff6666"],
                             "minValue": 0,
-                            "maxValue": 1
+                            "maxValue": 1,
                         },
                         "legendItems": [
-                            {
-                                "label": ("used by {}".format(k)),
-                                "color": "#ff6666"
-                            }
-                        ]
+                            {"label": f"used by {k}", "color": "#ff6666"}
+                        ],
                     }
+
                     with open(('{0}_{1}.json'.format(k,v[0]['group_id'])), 'w') as f:
                         f.write(json.dumps(actor_layer))
